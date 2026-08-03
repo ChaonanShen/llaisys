@@ -43,7 +43,8 @@ public:
 
     bool isContiguous() const;
 
-    // Meta Transform
+    // Meta Transform 
+    // view/permute/slice都创建一个新Tensor，共享storage，但 strides/shapes 不同
     tensor_t permute(const std::vector<size_t> &order) const;
     tensor_t slice(size_t dim, size_t start, size_t end) const;
     tensor_t view(const std::vector<size_t> &shape) const;

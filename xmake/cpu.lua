@@ -21,7 +21,9 @@ target("llaisys-ops-cpu")
     end
 
     add_files("../src/ops/*/cpu/*.cpp")
+    if is_plat("macosx") then
+        add_frameworks("Accelerate")
+    end
 
     on_install(function (target) end)
 target_end()
-

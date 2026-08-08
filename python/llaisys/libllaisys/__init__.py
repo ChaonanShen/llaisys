@@ -11,6 +11,7 @@ from .llaisys_types import llaisysMemcpyKind_t, MemcpyKind
 from .llaisys_types import llaisysStream_t
 from .tensor import llaisysTensor_t
 from .tensor import load_tensor
+from .qwen2 import load_qwen2
 from .ops import load_ops
 
 
@@ -37,6 +38,7 @@ def load_shared_library():
 LIB_LLAISYS = load_shared_library()
 load_runtime(LIB_LLAISYS)
 load_tensor(LIB_LLAISYS)
+load_qwen2(LIB_LLAISYS)
 load_ops(LIB_LLAISYS)
 
 

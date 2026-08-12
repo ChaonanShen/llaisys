@@ -6,6 +6,11 @@
 namespace llaisys::ops::cpu {
 void swiglu(std::byte *out, const std::byte *gate, const std::byte *up, llaisysDataType_t dtype, size_t n);
 }
+#ifdef ENABLE_NVIDIA_API
+namespace llaisys::ops::nvidia {
+void swiglu(std::byte *, const std::byte *, const std::byte *, llaisysDataType_t, size_t);
+}
+#endif
 
 namespace llaisys::ops {
 void swiglu(tensor_t out, tensor_t gate, tensor_t up) {
@@ -16,6 +21,12 @@ void swiglu(tensor_t out, tensor_t gate, tensor_t up) {
     if (out->deviceType() == LLAISYS_DEVICE_CPU) {
         return cpu::swiglu(out->data(), gate->data(), up->data(), out->dtype(), out->numel());
     }
+#ifdef ENABLE_NVIDIA_API
+    if (out->deviceType() == LLAISYS_DEVICE_NVIDIA) {
+        llaisys::core::context().setDevice(out->deviceType(), out->deviceId());
+        return nvidia::swiglu(out->data(), gate->data(), up->data(), out->dtype(), out->numel());
+    }
+#endif
     EXCEPTION_UNSUPPORTED_DEVICE;
 }
 } // namespace llaisys::ops

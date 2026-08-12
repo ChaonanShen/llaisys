@@ -8,6 +8,11 @@ void self_attention(std::byte *out, const std::byte *q, const std::byte *k, cons
                     llaisysDataType_t dtype, size_t query_length, size_t key_length,
                     size_t query_heads, size_t key_heads, size_t key_dim, size_t value_dim, float scale);
 }
+#ifdef ENABLE_NVIDIA_API
+namespace llaisys::ops::nvidia {
+void self_attention(std::byte *, const std::byte *, const std::byte *, const std::byte *, llaisysDataType_t, size_t, size_t, size_t, size_t, size_t, size_t, float);
+}
+#endif
 
 namespace llaisys::ops {
 void self_attention(tensor_t attn_val, tensor_t q, tensor_t k, tensor_t v, float scale) {
@@ -34,6 +39,13 @@ void self_attention(tensor_t attn_val, tensor_t q, tensor_t k, tensor_t v, float
         return cpu::self_attention(attn_val->data(), q->data(), k->data(), v->data(), attn_val->dtype(),
                                    query_length, key_length, query_heads, key_heads, key_dim, value_dim, scale);
     }
+#ifdef ENABLE_NVIDIA_API
+    if (attn_val->deviceType() == LLAISYS_DEVICE_NVIDIA) {
+        llaisys::core::context().setDevice(attn_val->deviceType(), attn_val->deviceId());
+        return nvidia::self_attention(attn_val->data(), q->data(), k->data(), v->data(), attn_val->dtype(),
+                                      query_length, key_length, query_heads, key_heads, key_dim, value_dim, scale);
+    }
+#endif
     EXCEPTION_UNSUPPORTED_DEVICE;
 }
 } // namespace llaisys::ops

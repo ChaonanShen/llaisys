@@ -7,6 +7,11 @@ namespace llaisys::ops::cpu {
 void rms_norm(std::byte *out, const std::byte *in, const std::byte *weight,
               llaisysDataType_t dtype, size_t rows, size_t width, float eps);
 }
+#ifdef ENABLE_NVIDIA_API
+namespace llaisys::ops::nvidia {
+void rms_norm(std::byte *, const std::byte *, const std::byte *, llaisysDataType_t, size_t, size_t, float);
+}
+#endif
 
 namespace llaisys::ops {
 void rms_norm(tensor_t out, tensor_t in, tensor_t weight, float eps) {
@@ -22,6 +27,12 @@ void rms_norm(tensor_t out, tensor_t in, tensor_t weight, float eps) {
         return cpu::rms_norm(out->data(), in->data(), weight->data(), out->dtype(),
                              in->shape()[0], in->shape()[1], eps);
     }
+#ifdef ENABLE_NVIDIA_API
+    if (out->deviceType() == LLAISYS_DEVICE_NVIDIA) {
+        llaisys::core::context().setDevice(out->deviceType(), out->deviceId());
+        return nvidia::rms_norm(out->data(), in->data(), weight->data(), out->dtype(), out->shape()[0], out->shape()[1], eps);
+    }
+#endif
     EXCEPTION_UNSUPPORTED_DEVICE;
 }
 } // namespace llaisys::ops

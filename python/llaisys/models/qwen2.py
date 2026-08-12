@@ -37,10 +37,13 @@ class Qwen2:
                 raise ValueError(f"unsupported scalar weight: {name}")
             LIB_LLAISYS.tensorLoad(handle, ctypes.c_void_p(value.data_ptr()))
 
+        embed_targets = [weights.in_embed]
+        if config.get("tie_word_embeddings", False):
+            embed_targets.append(weights.out_embed)
         globals_ = {
-            "model.embed_tokens.weight": weights.in_embed,
-            "lm_head.weight": weights.out_embed,
-            "model.norm.weight": weights.out_norm_w,
+            "model.embed_tokens.weight": embed_targets,
+            "lm_head.weight": [weights.out_embed],
+            "model.norm.weight": [weights.out_norm_w],
         }
         layer_fields = {
             "input_layernorm.weight": weights.attn_norm_w, "self_attn.q_proj.weight": weights.attn_q_w,
@@ -56,7 +59,8 @@ class Qwen2:
                 for name_ in data_.keys():
                     value = data_.get_tensor(name_)
                     if name_ in globals_:
-                        load(name_, globals_[name_], value)
+                        for handle in globals_[name_]:
+                            load(name_, handle, value)
                         continue
                     parts = name_.split(".")
                     if len(parts) < 4 or parts[0] != "model" or parts[1] != "layers":

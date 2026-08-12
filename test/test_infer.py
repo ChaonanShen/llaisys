@@ -2,6 +2,7 @@ import gc
 from test_utils import *
 
 import argparse
+import json
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 from huggingface_hub import snapshot_download
@@ -14,6 +15,16 @@ import io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
 
+def model_torch_dtype(model_path):
+    with open(os.path.join(model_path, "config.json"), encoding="utf-8") as config_file:
+        dtype_name = json.load(config_file).get("torch_dtype", "float32")
+    return {
+        "float32": torch.float32,
+        "float16": torch.float16,
+        "bfloat16": torch.bfloat16,
+    }[dtype_name]
+
+
 def load_hf_model(model_path=None, device_name="cpu"):
     model_id = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 
@@ -22,10 +33,12 @@ def load_hf_model(model_path=None, device_name="cpu"):
     else:
         print(f"Loading model from Hugging Face: {model_id}")
         model_path = snapshot_download(model_id)
+    dtype = model_torch_dtype(model_path)
+    print(f"Loading Transformers weights as {dtype}")
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
-        torch_dtype=torch.bfloat16,
+        torch_dtype=dtype,
         device_map=torch_device(device_name),
         trust_remote_code=True,
     )
@@ -42,9 +55,12 @@ def hf_infer(
         tokenize=False,
     )
     inputs = tokenizer.encode(input_content, return_tensors="pt").to(model.device)
+    attention_mask = torch.ones_like(inputs)
     with torch.no_grad():
         outputs = model.generate(
             inputs,
+            attention_mask=attention_mask,
+            pad_token_id=tokenizer.eos_token_id,
             max_new_tokens=max_new_tokens,
             top_k=top_k,
             top_p=top_p,
@@ -113,6 +129,8 @@ if __name__ == "__main__":
 
     del model
     gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
     print("\n=== Answer ===\n")
     print("Tokens:")
@@ -145,5 +163,18 @@ if __name__ == "__main__":
     print(f"Time elapsed: {(end_time - start_time):.2f}s\n")
 
     if args.test:
-        assert llaisys_tokens == tokens
+        if llaisys_tokens != tokens:
+            mismatch = next(
+                (
+                    i
+                    for i, (actual, expected) in enumerate(zip(llaisys_tokens, tokens))
+                    if actual != expected
+                ),
+                min(len(llaisys_tokens), len(tokens)),
+            )
+            raise AssertionError(
+                f"token mismatch at index {mismatch}: "
+                f"LLAISYS={llaisys_tokens[mismatch:mismatch + 1]}, "
+                f"Transformers={tokens[mismatch:mismatch + 1]}"
+            )
         print("\033[92mTest passed!\033[0m\n")

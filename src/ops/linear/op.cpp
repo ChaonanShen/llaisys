@@ -7,6 +7,11 @@ namespace llaisys::ops::cpu {
 void linear(std::byte *out, const std::byte *in, const std::byte *weight, const std::byte *bias,
             llaisysDataType_t dtype, size_t rows, size_t out_features, size_t in_features);
 }
+#ifdef ENABLE_NVIDIA_API
+namespace llaisys::ops::nvidia {
+void linear(std::byte *, const std::byte *, const std::byte *, const std::byte *, llaisysDataType_t, size_t, size_t, size_t);
+}
+#endif
 
 namespace llaisys::ops {
 void linear(tensor_t out, tensor_t in, tensor_t weight, tensor_t bias) {
@@ -28,6 +33,13 @@ void linear(tensor_t out, tensor_t in, tensor_t weight, tensor_t bias) {
         return cpu::linear(out->data(), in->data(), weight->data(), bias ? bias->data() : nullptr,
                            out->dtype(), in->shape()[0], weight->shape()[0], in->shape()[1]);
     }
+#ifdef ENABLE_NVIDIA_API
+    if (out->deviceType() == LLAISYS_DEVICE_NVIDIA) {
+        llaisys::core::context().setDevice(out->deviceType(), out->deviceId());
+        return nvidia::linear(out->data(), in->data(), weight->data(), bias ? bias->data() : nullptr,
+                              out->dtype(), in->shape()[0], weight->shape()[0], in->shape()[1]);
+    }
+#endif
     EXCEPTION_UNSUPPORTED_DEVICE;
 }
 } // namespace llaisys::ops

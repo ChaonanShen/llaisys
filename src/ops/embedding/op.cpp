@@ -7,6 +7,11 @@ namespace llaisys::ops::cpu {
 void embedding(std::byte *out, const std::byte *index, const std::byte *weight,
                size_t length, size_t vocab, size_t width, size_t element_size);
 }
+#ifdef ENABLE_NVIDIA_API
+namespace llaisys::ops::nvidia {
+void embedding(std::byte *, const std::byte *, const std::byte *, size_t, size_t, size_t, size_t);
+}
+#endif
 
 namespace llaisys::ops {
 void embedding(tensor_t out, tensor_t index, tensor_t weight) {
@@ -22,6 +27,12 @@ void embedding(tensor_t out, tensor_t index, tensor_t weight) {
         return cpu::embedding(out->data(), index->data(), weight->data(), index->shape()[0],
                               weight->shape()[0], weight->shape()[1], out->elementSize());
     }
+#ifdef ENABLE_NVIDIA_API
+    if (out->deviceType() == LLAISYS_DEVICE_NVIDIA) {
+        llaisys::core::context().setDevice(out->deviceType(), out->deviceId());
+        return nvidia::embedding(out->data(), index->data(), weight->data(), index->shape()[0], weight->shape()[0], weight->shape()[1], out->elementSize());
+    }
+#endif
     EXCEPTION_UNSUPPORTED_DEVICE;
 }
 } // namespace llaisys::ops

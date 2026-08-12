@@ -11,7 +11,6 @@
 #include "../../utils.hpp"
 
 #include <cmath>
-#include <cstring>
 
 namespace llaisys::models {
 namespace {
@@ -23,7 +22,8 @@ tensor_t make_tensor(const std::vector<size_t> &shape, llaisysDataType_t dtype,
 
 Qwen2Model::Qwen2Model(const LlaisysQwen2Meta &meta, llaisysDeviceType_t device, int device_id)
     : _meta(meta), _device(device), _device_id(device_id) {
-    CHECK_ARGUMENT(device == LLAISYS_DEVICE_CPU, "Qwen2 currently supports CPU only");
+    CHECK_ARGUMENT(device == LLAISYS_DEVICE_CPU || device == LLAISYS_DEVICE_NVIDIA,
+                   "Qwen2 supports CPU and NVIDIA devices");
     CHECK_ARGUMENT(meta.hs == meta.nh * meta.dh && meta.nh % meta.nkvh == 0, "invalid Qwen2 head configuration");
     in_embed = make_tensor({meta.voc, meta.hs}, meta.dtype, device, device_id);
     out_embed = make_tensor({meta.voc, meta.hs}, meta.dtype, device, device_id);
@@ -91,13 +91,14 @@ int64_t Qwen2Model::infer(const int64_t *token_ids, size_t ntoken) {
         auto next_k = make_tensor({total_length, _meta.nkvh, _meta.dh}, _meta.dtype, _device, _device_id);
         auto next_v = make_tensor({total_length, _meta.nkvh, _meta.dh}, _meta.dtype, _device, _device_id);
         const size_t cached_bytes = _cache_len * kvdim * next_k->elementSize();
+        auto runtime_api = llaisys::core::context().runtime().api();
         if (_cache_len != 0) {
-            std::memcpy(next_k->data(), _k_cache[layer]->data(), cached_bytes);
-            std::memcpy(next_v->data(), _v_cache[layer]->data(), cached_bytes);
+            runtime_api->memcpy_sync(next_k->data(), _k_cache[layer]->data(), cached_bytes, LLAISYS_MEMCPY_D2D);
+            runtime_api->memcpy_sync(next_v->data(), _v_cache[layer]->data(), cached_bytes, LLAISYS_MEMCPY_D2D);
         }
         const size_t current_bytes = ntoken * kvdim * next_k->elementSize();
-        std::memcpy(next_k->data() + cached_bytes, k_rotated->data(), current_bytes);
-        std::memcpy(next_v->data() + cached_bytes, v->data(), current_bytes);
+        runtime_api->memcpy_sync(next_k->data() + cached_bytes, k_rotated->data(), current_bytes, LLAISYS_MEMCPY_D2D);
+        runtime_api->memcpy_sync(next_v->data() + cached_bytes, v->data(), current_bytes, LLAISYS_MEMCPY_D2D);
         _k_cache[layer] = next_k;
         _v_cache[layer] = next_v;
 
@@ -132,6 +133,8 @@ int64_t Qwen2Model::infer(const int64_t *token_ids, size_t ntoken) {
     auto next_id = make_tensor({1}, LLAISYS_DTYPE_I64, _device, _device_id);
     auto max_value = make_tensor({1}, _meta.dtype, _device, _device_id);
     ops::argmax(next_id, max_value, logits->view({_meta.voc}));
-    return *reinterpret_cast<const int64_t *>(next_id->data());
+    int64_t result = 0;
+    llaisys::core::context().runtime().api()->memcpy_sync(&result, next_id->data(), sizeof(result), LLAISYS_MEMCPY_D2H);
+    return result;
 }
 } // namespace llaisys::models

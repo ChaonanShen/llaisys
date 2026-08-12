@@ -17,7 +17,7 @@ Context::Context() {
     for (auto device_type : device_typs) {
         const LlaisysRuntimeAPI *api_ = llaisysGetRuntimeAPI(device_type);
         int device_count = api_->get_device_count();
-        std::vector<Runtime *> runtimes_(device_count);
+        std::vector<Runtime *> runtimes_(device_count, nullptr);
         for (int device_id = 0; device_id < device_count; device_id++) {
 
             if (_current_runtime == nullptr) {
@@ -36,14 +36,13 @@ Context::~Context() {
     delete _current_runtime;
 
     for (auto &runtime_entry : _runtime_map) {
-        std::vector<Runtime *> runtimes = runtime_entry.second;
-        for (auto runtime : runtimes) {
+        for (auto runtime : runtime_entry.second) {
             if (runtime != nullptr && runtime != _current_runtime) {
                 runtime->_activate();
                 delete runtime;
             }
         }
-        runtimes.clear();
+        runtime_entry.second.clear();
     }
     _current_runtime = nullptr;
     _runtime_map.clear();
@@ -52,7 +51,7 @@ Context::~Context() {
 void Context::setDevice(llaisysDeviceType_t device_type, int device_id) {
     // If doest not match the current runtime.
     if (_current_runtime == nullptr || _current_runtime->deviceType() != device_type || _current_runtime->deviceId() != device_id) {
-        auto runtimes = _runtime_map[device_type];
+        auto &runtimes = _runtime_map[device_type];
         CHECK_ARGUMENT((size_t)device_id < runtimes.size() && device_id >= 0, "invalid device id");
         if (_current_runtime != nullptr) {
             _current_runtime->_deactivate();

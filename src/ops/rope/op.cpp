@@ -7,6 +7,11 @@ namespace llaisys::ops::cpu {
 void rope(std::byte *out, const std::byte *in, const std::byte *pos_ids,
           llaisysDataType_t dtype, size_t sequence_length, size_t heads, size_t head_dim, float theta);
 }
+#ifdef ENABLE_NVIDIA_API
+namespace llaisys::ops::nvidia {
+void rope(std::byte *, const std::byte *, const std::byte *, llaisysDataType_t, size_t, size_t, size_t, float);
+}
+#endif
 
 namespace llaisys::ops {
 void rope(tensor_t out, tensor_t in, tensor_t pos_ids, float theta) {
@@ -24,6 +29,12 @@ void rope(tensor_t out, tensor_t in, tensor_t pos_ids, float theta) {
         return cpu::rope(out->data(), in->data(), pos_ids->data(), out->dtype(),
                          in->shape()[0], in->shape()[1], in->shape()[2], theta);
     }
+#ifdef ENABLE_NVIDIA_API
+    if (out->deviceType() == LLAISYS_DEVICE_NVIDIA) {
+        llaisys::core::context().setDevice(out->deviceType(), out->deviceId());
+        return nvidia::rope(out->data(), in->data(), pos_ids->data(), out->dtype(), in->shape()[0], in->shape()[1], in->shape()[2], theta);
+    }
+#endif
     EXCEPTION_UNSUPPORTED_DEVICE;
 }
 } // namespace llaisys::ops

@@ -28,7 +28,7 @@ llaisysTensor_t *handle_array(LlaisysQwen2Model *model, const std::vector<llaisy
 __C {
 LlaisysQwen2Model *llaisysQwen2ModelCreate(const LlaisysQwen2Meta *meta, llaisysDeviceType_t device,
                                             int *device_ids, int ndevice) {
-    CHECK_ARGUMENT(meta != nullptr && device_ids != nullptr && ndevice > 0, "invalid Qwen2 model creation arguments");
+    if (meta == nullptr || device_ids == nullptr || ndevice <= 0) return nullptr;
     auto *result = new LlaisysQwen2Model;
     result->model = std::make_unique<llaisys::models::Qwen2Model>(*meta, device, device_ids[0]);
     auto &model = *result->model;
@@ -68,17 +68,17 @@ void llaisysQwen2ModelDestroy(LlaisysQwen2Model *model) {
 }
 
 LlaisysQwen2Weights *llaisysQwen2ModelWeights(LlaisysQwen2Model *model) {
-    CHECK_ARGUMENT(model != nullptr, "Qwen2 model must not be null");
+    if (model == nullptr) return nullptr;
     return &model->weights;
 }
 
 void llaisysQwen2ModelReset(LlaisysQwen2Model *model) {
-    CHECK_ARGUMENT(model != nullptr, "Qwen2 model must not be null");
+    if (model == nullptr) return;
     model->model->reset();
 }
 
 int64_t llaisysQwen2ModelInfer(LlaisysQwen2Model *model, int64_t *token_ids, size_t ntoken) {
-    CHECK_ARGUMENT(model != nullptr, "Qwen2 model must not be null");
+    if (model == nullptr) return -1;
     return model->model->infer(token_ids, ntoken);
 }
 }
